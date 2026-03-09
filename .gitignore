@@ -1,0 +1,31 @@
+# Compiled Output
+dist/
+node_modules/
+build/
+.next/ # Next.js build output
+
+
+#Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+#ENV Variables
+.env 
+.env.local 
+.env.development.local 
+.env.test.local
+
+# OS
+.DS_Store
+
+#Temp Directories
+.temp
+.tmp
+
+#Backend files
+Backend/generated/prisma

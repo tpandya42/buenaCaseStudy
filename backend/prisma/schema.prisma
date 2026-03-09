@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id         String             @id @default(uuid())
+  name       String
+  slug       String             @unique
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  properties Property[]
+  users      UserOrganization[]
+}
+
+model User {
+  id                  String             @id @default(uuid())
+  email               String             @unique
+  name                String
+  role                UserRole           @default(VIEWER)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  accountedProperties Property[]         @relation("AccountantProperties")
+  managedProperties   Property[]         @relation("ManagerProperties")
+  organizations       UserOrganization[]
+}
+
+model UserOrganization {
+  id             String       @id @default(uuid())
+  userId         String
+  organizationId String
+  orgRole        UserRole
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+}
+
+model Property {
+  id                String            @id @default(uuid())
+  organizationId    String
+  name              String
+  managementType    ManagementType
+  propertyNumber    String            @unique
+  status            PropertyStatus    @default(DRAFT)
+  source            PropertySource    @default(MANUAL)
+  ownershipType     OwnershipType?
+  street            String?
+  houseNumber       String?
+  zipCode           String?
+  city              String?
+  country           String?           @default("DE")
+  managerId         String?
+  accountantId      String?
+  sourceDocumentId  String?           @unique
+  aiConfidenceScore Float?
+  aiMeta            Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdById       String?
+  updatedById       String?
+  archivedAt        DateTime?
+  deletedAt         DateTime?
+  aiExtractionJobs  AiExtractionJob[]
+  buildings         Building[]
+  accountant        User?             @relation("AccountantProperties", fields: [accountantId], references: [id])
+  manager           User?             @relation("ManagerProperties", fields: [managerId], references: [id])
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  sourceDocument    SourceDocument?   @relation("MainDeclaration", fields: [sourceDocumentId], references: [id])
+  propertyEvents    PropertyEvent[]
+  documents         SourceDocument[]  @relation("PropertyDocuments")
+  units             Unit[]
+}
+
+model Building {
+  id             String   @id @default(uuid())
+  propertyId     String
+  label          String?
+  street         String
+  houseNumber    String
+  zipCode        String
+  city           String
+  additionalInfo String?
+  docReference   String?
+  externalId     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  property       Property @relation(fields: [propertyId], references: [id])
+  units          Unit[]
+}
+
+model Unit {
+  id               String    @id @default(uuid())
+  propertyId       String
+  buildingId       String
+  number           String
+  type             UnitType
+  floor            String?
+  entrance         String?
+  stairwell        String?
+  sideOfBuilding   String?
+  sizeSqm          Float?
+  coOwnershipShare Float?
+  constructionYear Int?
+  rooms            Float?
+  isCommonProperty Boolean   @default(false)
+  usageNotes       String?
+  docReference     String?
+  externalId       String?
+  isAiGenerated    Boolean   @default(false)
+  isVerified       Boolean   @default(false)
+  verificationMeta Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  building         Building  @relation(fields: [buildingId], references: [id])
+  property         Property  @relation(fields: [propertyId], references: [id])
+}
+
+model SourceDocument {
+  id                      String            @id @default(uuid())
+  propertyId              String
+  type                    DocumentType
+  filename                String
+  mimeType                String
+  storagePath             String
+  sizeBytes               Int?
+  uploadedById            String?
+  uploadedAt              DateTime          @default(now())
+  aiExtractionJobs        AiExtractionJob[]
+  mainDeclarationProperty Property?         @relation("MainDeclaration")
+  property                Property          @relation("PropertyDocuments", fields: [propertyId], references: [id])
+}
+
+model AiExtractionJob {
+  id               String         @id @default(uuid())
+  propertyId       String
+  documentId       String
+  status           AiJobStatus    @default(PENDING)
+  model            String
+  promptVersion    String?
+  createdAt        DateTime       @default(now())
+  startedAt        DateTime?
+  completedAt      DateTime?
+  rawOutput        Json?
+  extractedData    Json?
+  validationIssues Json?
+  confidenceScore  Float?
+  createdById      String?
+  document         SourceDocument @relation(fields: [documentId], references: [id])
+  property         Property       @relation(fields: [propertyId], references: [id])
+}
+
+model PropertyEvent {
+  id          String   @id @default(uuid())
+  propertyId  String
+  type        String
+  payload     Json?
+  createdAt   DateTime @default(now())
+  createdById String?
+  property    Property @relation(fields: [propertyId], references: [id])
+}
+
+enum ManagementType {
+  WEG
+  MV
+}
+
+enum PropertyStatus {
+  DRAFT
+  IN_REVIEW
+  ACTIVE
+  ARCHIVED
+}
+
+enum UnitType {
+  APARTMENT
+  OFFICE
+  GARDEN
+  PARKING
+}
+
+enum DocumentType {
+  DECLARATION_OF_DIVISION
+  OTHER
+}
+
+enum AiJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  VIEWER
+}
+
+enum OwnershipType {
+  FREEHOLD
+  LEASEHOLD
+}
+
+enum PropertySource {
+  MANUAL
+  AI_ASSISTED
+  IMPORTED
+}
