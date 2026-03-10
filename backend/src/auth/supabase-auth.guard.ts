@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { IS_PUBLIC_KEY } from './skip-auth.decorator.js';
+import { IS_PUBLIC_KEY } from './skip-auth.decorator';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -31,7 +31,8 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     try {
-      await this.jwtService.verifyAsync(token);
+      const payload = await this.jwtService.verifyAsync(token);
+      request['user'] = payload;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }

@@ -14,9 +14,8 @@ export class PropertiesPrismaService {
     return this.prisma.property.create({
       data: {
         ...dto,
-        status: 'DRAFT',
+        status: PropertyStatus.DRAFT,
         propertyNumber: dto.propertyNumber || `PROP-${Date.now()}`,
-        organizationId: dto.organizationId || 'ORG-DEFAULT',
       },
       include: {
         manager: true,
@@ -44,7 +43,7 @@ export class PropertiesPrismaService {
 
 
   async findOne(id: string){
-    return this.prisma.property.findUnique({
+    const property = await this.prisma.property.findUnique({
       where: { id , deletedAt: null},
       include: {
         buildings: { include: { _count: { select: { units: true } } } },
@@ -52,10 +51,17 @@ export class PropertiesPrismaService {
         sourceDocument: true,
       },
     });
+
+    if (!property) {
+      throw new NotFoundException(`Property ${id} not found`);
+    }
+
+    return property;
   }
 
 
   async update(id: string, data: Partial<CreatePropertyDto>) {
+    await this.findOne(id); // throws 404 if missing
     return this.prisma.property.update({
       where: { id },
       data: data,
@@ -100,7 +106,7 @@ export class PropertiesPrismaService {
 
       return this.prisma.property.update({
         where: { id },
-        data: { status: 'ACTIVE' },
+        data: { status: PropertyStatus.ACTIVE },
       });
     }
 

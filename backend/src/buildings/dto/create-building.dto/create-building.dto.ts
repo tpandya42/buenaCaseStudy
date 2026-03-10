@@ -1,8 +1,9 @@
 import { IsString, IsOptional } from 'class-validator';
 
 export class CreateBuildingDto {
+  @IsOptional()
   @IsString()
-  label: string;
+  label?: string;
 
   @IsOptional()
   @IsString()

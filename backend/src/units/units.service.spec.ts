@@ -1,130 +1,180 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnitsService } from './units.service';
 import { PrismaService } from '../database/prisma.service';
-import { NotFoundException } from '@nestjs/common';
-import { CreateUnitDto } from './dto/create-unit.dto/create-unit.dto';
-import { PrismaClient } from '@prisma/client';
-
-// Mock PrismaService for testing
-const prismaMock = {
-  unit: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    findFirst: jest.fn(), // Added findFirst
-    findMany: jest.fn(),
-    update: jest.fn(),
-  },
-  property: {
-    findUnique: jest.fn(),
-    findFirst: jest.fn(), // Added findFirst
-  },
-  building: {
-    findUnique: jest.fn(),
-  },
-};
+import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { createPrismaMock, PrismaMock } from '../test-utils/prisma-mock.factory';
+import { mockUnit } from '../test-utils/fixtures';
 
 describe('UnitsService', () => {
   let service: UnitsService;
-  let prisma: PrismaClient;
+  let prisma: PrismaMock;
 
   beforeEach(async () => {
+    prisma = createPrismaMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UnitsService,
-        {
-          provide: PrismaService,
-          useValue: prismaMock,
-        },
+        { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
 
     service = module.get<UnitsService>(UnitsService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
+
+  afterEach(() => jest.clearAllMocks());
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  // Test cases for soft delete
-  describe('soft delete', () => {
-    const mockUnit = {
-      id: 'unit-id-1',
-      propertyId: 'property-id-1',
-      buildingId: 'building-id-1',
-      number: '1',
-      type: 'APARTMENT',
-      floor: '1',
-      entrance: 'Main',
-      stairwell: 'A',
-      sideOfBuilding: 'Front',
-      sizeSqm: 50,
-      coOwnershipShare: 1000,
-      constructionYear: 2000,
-      rooms: 2,
-      isCommonProperty: false,
-      usageNotes: null,
-      docReference: null,
-      externalId: null,
-      isAiGenerated: false,
-      isVerified: false,
-      verificationMeta: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      deletedAt: null,
-    };
+  describe('findOne', () => {
+    it('should return a unit when found', async () => {
+      const unit = mockUnit();
+      prisma.unit.findFirst.mockResolvedValue(unit);
 
-    beforeEach(() => {
-      // Reset mocks before each test
-      jest.clearAllMocks();
+      const result = await service.findOne('unit-1');
+
+      expect(result).toEqual(unit);
+      expect(prisma.unit.findFirst).toHaveBeenCalledWith({
+        where: { id: 'unit-1', deletedAt: null },
+        include: { building: true, property: true },
+      });
     });
 
+    it('should throw NotFoundException when unit not found', async () => {
+      prisma.unit.findFirst.mockResolvedValue(null);
+
+      await expect(service.findOne('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should not return soft-deleted units', async () => {
+      prisma.unit.findFirst.mockResolvedValue(null);
+
+      await expect(service.findOne('unit-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findByProperty', () => {
+    it('should return live units for a property', async () => {
+      const liveUnit = mockUnit({ id: 'live-1', deletedAt: null });
+      prisma.property.findFirst.mockResolvedValue({ id: 'prop-1' });
+      prisma.unit.findMany.mockResolvedValue([liveUnit]);
+
+      const result = await service.findByProperty('prop-1');
+
+      expect(result).toEqual([liveUnit]);
+      expect(prisma.unit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { propertyId: 'prop-1', deletedAt: null },
+        }),
+      );
+    });
+
+    it('should throw NotFoundException when property not found', async () => {
+      prisma.property.findFirst.mockResolvedValue(null);
+
+      await expect(service.findByProperty('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('remove (soft delete)', () => {
     it('should soft delete a unit', async () => {
-      prismaMock.unit.update.mockResolvedValue({ ...mockUnit, deletedAt: new Date() });
-      prismaMock.unit.findFirst.mockResolvedValueOnce(mockUnit); // Unit exists before deletion
+      const unit = mockUnit();
+      prisma.unit.findFirst.mockResolvedValue(unit);
+      prisma.unit.update.mockResolvedValue({ ...unit, deletedAt: new Date() });
 
-      const result = await service.remove(mockUnit.id);
+      const result = await service.remove('unit-1');
 
-      expect(prismaMock.unit.update).toHaveBeenCalledWith({
-        where: { id: mockUnit.id },
+      expect(prisma.unit.update).toHaveBeenCalledWith({
+        where: { id: 'unit-1' },
         data: { deletedAt: expect.any(Date) },
       });
-      expect(result).toEqual({ ...mockUnit, deletedAt: expect.any(Date) });
+      expect(result.deletedAt).toBeDefined();
     });
 
-    it('should not return a soft-deleted unit via findOne', async () => {
-      const softDeletedUnit = { ...mockUnit, deletedAt: new Date() };
-      prismaMock.unit.findFirst.mockResolvedValue(softDeletedUnit);
+    it('should throw NotFoundException for missing unit', async () => {
+      prisma.unit.findFirst.mockResolvedValue(null);
 
-      // This test relies on the middleware to filter out the soft-deleted unit.
-      // Since we are mocking Prisma, the middleware won't be applied here.
-      // We need to simulate the middleware's behavior in the mock.
-      prismaMock.unit.findFirst.mockImplementation((args) => {
-        if (args.where && args.where.deletedAt === null) {
-          return Promise.resolve(null); // Simulate middleware filtering
-        }
-        return Promise.resolve(softDeletedUnit);
-      });
+      await expect(service.remove('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 
-      await expect(service.findOne(mockUnit.id)).rejects.toThrow(NotFoundException);
+  describe('update', () => {
+    it('should update an existing unit', async () => {
+      const unit = mockUnit();
+      prisma.unit.findFirst.mockResolvedValue(unit);
+      prisma.unit.update.mockResolvedValue({ ...unit, floor: '2.OG' });
+
+      const result = await service.update('unit-1', { floor: '2.OG' });
+
+      expect(result.floor).toBe('2.OG');
+    });
+  });
+
+  describe('bulkCreate', () => {
+    it('should validate building ownership', async () => {
+      prisma.property.findFirst.mockResolvedValue({ id: 'prop-1' });
+      prisma.building.findMany.mockResolvedValue([]);
+
+      const items = [
+        { number: '1', type: 'APARTMENT' as any, buildingId: 'invalid-bldg' },
+      ];
+
+      await expect(service.bulkCreate('prop-1', items)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
-    it('should not return soft-deleted units via findByProperty', async () => {
-      const liveUnit = { ...mockUnit, id: 'live-unit', deletedAt: null };
-      const softDeletedUnit = { ...mockUnit, id: 'deleted-unit', deletedAt: new Date() };
+    it('should create units when buildings are valid', async () => {
+      prisma.property.findFirst.mockResolvedValue({ id: 'prop-1' });
+      prisma.building.findMany.mockResolvedValue([{ id: 'bldg-1' }]);
+      prisma.unit.createMany.mockResolvedValue({ count: 1 });
+      prisma.unit.findMany.mockResolvedValue([mockUnit()]);
 
-      prismaMock.property.findUnique.mockResolvedValue({ id: 'property-id-1' }); // Property exists
+      const items = [
+        { number: '1', type: 'APARTMENT' as any, buildingId: 'bldg-1' },
+      ];
 
-      prismaMock.unit.findMany.mockImplementation((args) => {
-        if (args.where && args.where.deletedAt === null) {
-          return Promise.resolve([liveUnit]); // Simulate middleware filtering
-        }
-        return Promise.resolve([liveUnit, softDeletedUnit]);
-      });
+      const result = await service.bulkCreate('prop-1', items);
 
-      const result = await service.findByProperty('property-id-1');
-      expect(result).toEqual([liveUnit]);
-      expect(result).not.toContainEqual(softDeletedUnit);
+      expect(result.count).toBe(1);
+      expect(result.units).toHaveLength(1);
+    });
+  });
+
+  describe('bulkUpdate', () => {
+    it('should validate unit ownership', async () => {
+      prisma.property.findFirst.mockResolvedValue({ id: 'prop-1' });
+      prisma.unit.findMany.mockResolvedValue([]);
+
+      const items = [{ id: 'invalid-unit', floor: '3.OG' }];
+
+      await expect(service.bulkUpdate('prop-1', items)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should update units when all IDs are valid', async () => {
+      prisma.property.findFirst.mockResolvedValue({ id: 'prop-1' });
+      prisma.unit.findMany.mockResolvedValue([{ id: 'unit-1' }]);
+      const updatedUnit = mockUnit({ floor: '3.OG' });
+      prisma.unit.update.mockResolvedValue(updatedUnit);
+
+      const items = [{ id: 'unit-1', floor: '3.OG' }];
+
+      const result = await service.bulkUpdate('prop-1', items);
+
+      expect(result.count).toBe(1);
+      expect(result.units[0].floor).toBe('3.OG');
     });
   });
 });

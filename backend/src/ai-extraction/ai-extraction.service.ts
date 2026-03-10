@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import pdfParse from 'pdf-parse';
-import { ExtractionResult } from './ai-extraction.types.js';
+import { ExtractionResult } from './ai-extraction.types';
 
 @Injectable()
 export class AiExtractionService {

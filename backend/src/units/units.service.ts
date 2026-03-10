@@ -19,7 +19,7 @@ export class UnitsService {
     await this.ensurePropertyExists(propertyId);
 
     return this.prisma.unit.findMany({
-      where: { propertyId },
+      where: { propertyId, deletedAt: null },
       include: { building: true },
       orderBy: [{ building: { label: 'asc' } }, { number: 'asc' }],
     });
@@ -30,7 +30,7 @@ export class UnitsService {
   /* ------------------------------------------------------------------ */
   async findOne(id: string) {
     const unit = await this.prisma.unit.findFirst({
-      where: { id },
+      where: { id, deletedAt: null },
       include: { building: true, property: true },
     });
 
@@ -73,7 +73,7 @@ export class UnitsService {
 
     // Return the newly created units
     const created = await this.prisma.unit.findMany({
-      where: { propertyId },
+      where: { propertyId, deletedAt: null },
       include: { building: true },
       orderBy: { createdAt: 'desc' },
       take: result.count,
@@ -92,7 +92,7 @@ export class UnitsService {
 
     // Verify all units belong to this property and are not soft-deleted
     const existingUnits = await this.prisma.unit.findMany({
-      where: { propertyId, id: { in: requestedUnitIds } },
+      where: { propertyId, id: { in: requestedUnitIds }, deletedAt: null },
       select: { id: true },
     });
     const existingIds = new Set(existingUnits.map((u) => u.id));

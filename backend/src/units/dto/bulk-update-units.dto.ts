@@ -1,6 +1,7 @@
 import {
   ValidateNested,
   ArrayMinSize,
+  IsArray,
   IsString,
   IsEnum,
   IsOptional,
@@ -60,6 +61,7 @@ export class BulkUpdateUnitItem {
 }
 
 export class BulkUpdateUnitsDto {
+  @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)
   @Type(() => BulkUpdateUnitItem)
