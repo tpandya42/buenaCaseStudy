@@ -2,6 +2,8 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -9,13 +11,18 @@ COPY prisma ./prisma
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+ENV DATABASE_URL=${DATABASE_URL}
+
 RUN npx prisma generate
 RUN npm run build
 RUN npm prune --omit=dev
-RUN npm install prisma@6.19.2 --no-save
+RUN npm install prisma@7.3.0 --no-save
 
 FROM node:20-slim AS runner
 WORKDIR /app
+
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV PORT=3000

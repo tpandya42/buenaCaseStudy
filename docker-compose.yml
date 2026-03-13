@@ -18,6 +18,8 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/postgres}
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/postgres}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-change-me}
