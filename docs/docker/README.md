@@ -75,3 +75,6 @@ docker compose build backend
 ## Custom backend URL for frontend
 The frontend build uses `API_BASE_URL` (build arg) to route `/api/*` to the backend.
 In `docker-compose.yml` this is set to `http://backend:3000`.
+
+If you see proxy errors, the client can call the backend directly by setting
+`NEXT_PUBLIC_API_BASE_URL=http://localhost:3000` during the frontend build.

@@ -4,7 +4,6 @@ import { AiExtractionService } from '../ai-extraction/ai-extraction.service';
 import { PrismaService } from '../database/prisma.service';
 import { createPrismaMock, PrismaMock } from '../test-utils/prisma-mock.factory';
 import { mockBuilding, mockProperty, mockUnit } from '../test-utils/fixtures';
-import { NotFoundException } from '@nestjs/common';
 
 describe('DocumentsService', () => {
   let service: DocumentsService;
@@ -70,14 +69,22 @@ describe('DocumentsService', () => {
   });
 
   describe('extract', () => {
-    it('should persist extraction results for a property', async () => {
+    it('should persist extraction results and create a new property', async () => {
       const mockResult = {
-        confidence: 95,
+        property: {
+          name: 'Musterstr. 1',
+          managementType: 'WEG',
+          street: 'Musterstr.',
+          houseNumber: '1',
+          zipCode: '10115',
+          city: 'Berlin',
+        },
         buildings: [{ label: 'Haus A', street: 'Musterstr.', houseNumber: '1' }],
         units: [{ number: '1', type: 'APARTMENT', buildingLabel: 'Haus A' }],
       };
       aiService.extractFromPdf.mockResolvedValue(mockResult);
-      prisma.property.findFirst.mockResolvedValue(mockProperty());
+      prisma.organization.upsert.mockResolvedValue({ id: 'org-1' } as any);
+      prisma.property.create.mockResolvedValue({ id: 'prop-1' } as any);
       prisma.sourceDocument.create.mockResolvedValue({ id: 'doc-1' } as any);
       prisma.aiExtractionJob.create.mockResolvedValue({ id: 'job-1' } as any);
       prisma.building.findMany.mockResolvedValue([]);
@@ -87,26 +94,17 @@ describe('DocumentsService', () => {
       prisma.property.update.mockResolvedValue(mockProperty({ source: 'AI_ASSISTED' }));
 
       const file = { buffer: Buffer.from('pdf content') } as Express.Multer.File;
-      const result = await service.extract(file, { propertyId: 'prop-1' });
+      const result = await service.extract(file, { organizationId: 'org-1' });
 
       expect(aiService.extractFromPdf).toHaveBeenCalledWith(file.buffer);
+      expect(prisma.organization.upsert).toHaveBeenCalled();
+      expect(prisma.property.create).toHaveBeenCalled();
       expect(prisma.sourceDocument.create).toHaveBeenCalled();
       expect(prisma.unit.create).toHaveBeenCalled();
-      expect(result.documentId).toBe('doc-1');
-    });
-
-    it('should throw when property is missing', async () => {
-      prisma.property.findFirst.mockResolvedValue(null);
-
-      const file = { buffer: Buffer.from('pdf content') } as Express.Multer.File;
-
-      await expect(
-        service.extract(file, { propertyId: 'missing' }),
-      ).rejects.toThrow(NotFoundException);
+      expect(result.propertyId).toBe('prop-1');
     });
 
     it('should propagate errors from AI service', async () => {
-      prisma.property.findFirst.mockResolvedValue(mockProperty());
       aiService.extractFromPdf.mockRejectedValue(
         new Error('AI extraction failed'),
       );
@@ -114,7 +112,7 @@ describe('DocumentsService', () => {
       const file = { buffer: Buffer.from('bad pdf') } as Express.Multer.File;
 
       await expect(
-        service.extract(file, { propertyId: 'prop-1' }),
+        service.extract(file, { organizationId: 'org-1' }),
       ).rejects.toThrow('AI extraction failed');
     });
   });

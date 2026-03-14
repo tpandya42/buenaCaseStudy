@@ -40,7 +40,16 @@ describe('AiExtractionService', () => {
 
     it('should extract data from PDF buffer', async () => {
       const mockResponse = {
-        confidence: 95,
+        property: {
+          name: 'Musterstr. 1',
+          managementType: 'WEG',
+          ownershipType: 'FREEHOLD',
+          street: 'Musterstr.',
+          houseNumber: '1',
+          zipCode: '10115',
+          city: 'Berlin',
+          country: 'DE',
+        },
         buildings: [{ label: 'Haus A', street: 'Musterstr.', houseNumber: '1' }],
         units: [
           {
@@ -63,13 +72,13 @@ describe('AiExtractionService', () => {
 
       expect(result.buildings).toHaveLength(1);
       expect(result.units).toHaveLength(1);
-      expect(result.confidence).toBe(95);
-      expect(result.warning).toBeUndefined();
+      expect(result.property.name).toBe('Musterstr. 1');
+      expect(result.warnings).toBeUndefined();
     });
 
-    it('should set lower confidence when share sum is off', async () => {
+    it('should add warning when share sum is off', async () => {
       const mockResponse = {
-        confidence: 95,
+        property: { name: 'Musterstr. 1', managementType: 'WEG' },
         buildings: [{ label: 'Haus A' }],
         units: [
           { number: '1', type: 'APARTMENT', buildingLabel: 'Haus A', coOwnershipShare: 200 },
@@ -83,8 +92,7 @@ describe('AiExtractionService', () => {
       const buffer = Buffer.from('Some valid text content');
       const result = await service.extractFromPdf(buffer);
 
-      expect(result.confidence).toBe(70);
-      expect(result.warning).toContain('Co-ownership share sum');
+      expect(result.warnings?.[0]).toContain('Co-ownership share sum');
     });
 
     it('should throw when PDF has no text', async () => {

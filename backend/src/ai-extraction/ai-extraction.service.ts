@@ -43,22 +43,60 @@ export class AiExtractionService {
       throw new BadRequestException('Could not extract text from PDF');
     }
 
-    const prompt = `You are a German real-estate document parser. Extract structured data from this Teilungserklärung text (${text.length} chars).
+    const prompt = `You are a German real-estate document parser. Extract structured data from this PDF text (${text.length} chars).
 
 TEXT:
 ${text}
 
 RETURN ONLY valid JSON with this exact structure (no markdown, no explanation):
 {
-  "confidence": 95,
-  "buildings": [{"label": "Haus A", "street": "Musterstr.", "houseNumber": "12"}],
-  "units": [{"number": "1", "type": "APARTMENT", "buildingLabel": "Haus A", "floor": "EG", "sizeSqm": 80, "coOwnershipShare": 12.5}]
+  "property": {
+    "name": "Musterstr. 12",
+    "managementType": "WEG",
+    "ownershipType": "FREEHOLD",
+    "propertyNumber": "PROP-123",
+    "street": "Musterstr.",
+    "houseNumber": "12",
+    "zipCode": "10115",
+    "city": "Berlin",
+    "country": "DE"
+  },
+  "buildings": [{
+    "label": "Haus A",
+    "street": "Musterstr.",
+    "houseNumber": "12",
+    "zipCode": "10115",
+    "city": "Berlin",
+    "additionalInfo": null,
+    "docReference": null,
+    "externalId": null
+  }],
+  "units": [{
+    "number": "1",
+    "type": "APARTMENT",
+    "buildingLabel": "Haus A",
+    "floor": "EG",
+    "entrance": null,
+    "stairwell": null,
+    "sideOfBuilding": null,
+    "sizeSqm": 80,
+    "coOwnershipShare": 12.5,
+    "constructionYear": 1998,
+    "rooms": 3,
+    "isCommonProperty": false,
+    "usageNotes": null,
+    "docReference": null,
+    "externalId": null
+  }]
 }
 
 Rules:
-- "type" must be one of: APARTMENT, OFFICE, GARDEN, PARKING
-- "coOwnershipShare" is in per-mille (‰) — all units should sum to ~1000
-- Extract ALL buildings and units found in the document`;
+- Always return "property", "buildings", and "units" (empty array if none).
+- Use null for unknown values, do not invent data.
+- "managementType" must be one of: WEG, MV.
+- "ownershipType" must be one of: FREEHOLD, LEASEHOLD.
+- "type" must be one of: APARTMENT, OFFICE, GARDEN, PARKING.
+- "coOwnershipShare" is in per-mille (‰).`;
 
     const model = this.genAI.getGenerativeModel({
       model: modelName,
@@ -78,21 +116,22 @@ Rules:
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractionResult;
 
-    // Validate co-ownership share sum (~1000‰ with ±50 tolerance)
+    const warnings: string[] = [];
     const totalShare = (parsed.units ?? []).reduce(
       (sum, u) => sum + (u.coOwnershipShare ?? 0),
       0,
     );
-
-    const shareValid = Math.abs(totalShare - 1000) <= 50;
+    if (totalShare > 0 && Math.abs(totalShare - 1000) > 50) {
+      warnings.push(
+        `Co-ownership share sum: ${totalShare.toFixed(1)}‰ (expected ~1000‰)`,
+      );
+    }
 
     return {
-      confidence: shareValid ? 95 : 70,
+      property: parsed.property ?? {},
       buildings: parsed.buildings ?? [],
       units: parsed.units ?? [],
-      warning: shareValid
-        ? undefined
-        : `Co-ownership share sum: ${totalShare.toFixed(1)}‰ (expected ~1000‰)`,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   }
 }

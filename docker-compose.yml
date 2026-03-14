@@ -36,8 +36,10 @@ services:
       context: ./frontend
       args:
         API_BASE_URL: http://backend:3000
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3000
     environment:
       PORT: 3001
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3000
     depends_on:
       - backend
     ports:

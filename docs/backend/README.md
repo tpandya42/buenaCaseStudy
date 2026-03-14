@@ -202,13 +202,14 @@ curl -F "files=@/path/to/file.pdf" http://localhost:3000/documents
 ```
 
 ### AI extraction + persistence
-`POST /documents/extract` now persists results into the database.
-Send `propertyId` (required) and an optional `documentType` field.
+`POST /documents/extract` creates a new property from the PDF and persists results.
+Send `organizationId` (required) and an optional `documentType`. If the organization
+does not exist yet, it is created automatically with the same ID and slug.
 
 Example:
 ```
 curl -F "files=@/path/to/file.pdf" \
-  -F "propertyId=prop-1" \
+  -F "organizationId=org_default" \
   -F "documentType=DECLARATION_OF_DIVISION" \
   http://localhost:3000/documents/extract
 ```

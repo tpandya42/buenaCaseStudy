@@ -50,6 +50,7 @@ export function createPrismaMock() {
     organization: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      upsert: jest.fn(),
     },
   };
 }

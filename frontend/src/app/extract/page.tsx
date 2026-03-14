@@ -6,18 +6,9 @@ import { useDropzone } from "react-dropzone";
 import { Upload, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useExtractDocument } from "@/hooks/use-extraction";
-import { useProperties } from "@/hooks/use-properties";
 import type { ExtractionResult } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -29,24 +20,22 @@ import {
 
 export default function ExtractPage() {
   const extract = useExtractDocument();
-  const { data: properties, isLoading, error } = useProperties();
-  const [propertyId, setPropertyId] = useState<string>("");
   const [result, setResult] = useState<ExtractionResult | null>(null);
+  const DEFAULT_ORG_ID = "org_default";
 
   const onDrop = useCallback(
     async (files: File[]) => {
       const file = files[0];
       if (!file) return;
-      if (!propertyId) {
-        toast.error("Please select a property first");
-        return;
-      }
       if (file.type !== "application/pdf") {
         toast.error("Only PDF files are supported");
         return;
       }
       try {
-        const data = await extract.mutateAsync({ file, propertyId });
+        const data = await extract.mutateAsync({
+          file,
+          organizationId: DEFAULT_ORG_ID,
+        });
         setResult(data);
         toast.success("Extraction complete!");
       } catch (err: unknown) {
@@ -55,14 +44,14 @@ export default function ExtractPage() {
         );
       }
     },
-    [extract, propertyId]
+    [extract]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
-    disabled: extract.isPending || !propertyId,
+    disabled: extract.isPending,
   });
 
   return (
@@ -76,46 +65,6 @@ export default function ExtractPage() {
           Upload a PDF document to extract property data using AI
         </p>
       </div>
-
-      <Card className="mb-6 border-border/50">
-        <CardHeader>
-          <CardTitle className="text-base">Select property</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label>Property *</Label>
-          {isLoading && (
-            <p className="text-sm text-muted-foreground">Loading properties…</p>
-          )}
-          {error && (
-            <p className="text-sm text-destructive">
-              Failed to load properties: {error.message}
-            </p>
-          )}
-          {!isLoading && properties && properties.length > 0 && (
-            <Select value={propertyId} onValueChange={setPropertyId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose a property" />
-              </SelectTrigger>
-              <SelectContent>
-                {properties.map((property) => (
-                  <SelectItem key={property.id} value={property.id}>
-                    {property.name} ({property.propertyNumber})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {!isLoading && properties?.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No properties yet.{" "}
-              <Link href="/properties/new" className="text-primary underline">
-                Create a property
-              </Link>
-              .
-            </p>
-          )}
-        </CardContent>
-      </Card>
 
       <Card className="mb-8 border-border/50">
         <CardContent className="pt-6">
@@ -157,18 +106,31 @@ export default function ExtractPage() {
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-bold">Extraction Results</h2>
             <Badge variant="outline" className="text-[10px] font-bold">
-              Confidence: {(result.confidence * 100).toFixed(0)}%
+              Property ID: {result.propertyId}
             </Badge>
           </div>
 
-          {result.warning && (
+          {result.warnings && result.warnings.length > 0 && (
             <Card className="border-amber-200 bg-amber-50/50">
               <CardContent className="pt-4 text-sm text-amber-800 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                {result.warning}
+                <div className="space-y-1">
+                  {result.warnings.map((warning, idx) => (
+                    <p key={idx}>{warning}</p>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
+
+          <div className="text-sm text-muted-foreground">
+            <Link
+              href={`/properties/${result.propertyId}`}
+              className="text-primary underline"
+            >
+              Open extracted property
+            </Link>
+          </div>
 
           <Card className="border-border/50">
             <CardHeader>

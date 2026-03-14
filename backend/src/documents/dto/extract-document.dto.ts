@@ -1,9 +1,10 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { DocumentType } from '@prisma/client';
 
 export class ExtractDocumentDto {
   @IsString()
-  propertyId: string;
+  @IsNotEmpty()
+  organizationId: string;
 
   @IsOptional()
   @IsEnum(DocumentType)
