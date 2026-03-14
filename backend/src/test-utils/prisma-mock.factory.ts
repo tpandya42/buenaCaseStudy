@@ -5,6 +5,7 @@
  */
 export function createPrismaMock() {
   return {
+    $transaction: jest.fn(),
     property: {
       create: jest.fn(),
       findUnique: jest.fn(),

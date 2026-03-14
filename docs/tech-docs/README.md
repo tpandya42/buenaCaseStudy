@@ -17,6 +17,7 @@ Backend expects:
 - `DATABASE_URL` Postgres connection string
 - `SUPABASE_JWT_SECRET` JWT verification secret
 - `GEMINI_API_KEY` optional; enables AI extraction
+- `GEMINI_MODEL` optional; defaults to `gemini-2.0-flash`
 - `PORT` optional; defaults to `3000`
 
 Frontend:
@@ -48,3 +49,6 @@ Backend:
 Frontend:
 - `npm run build` build app
 - `npm run lint` lint code
+
+## Deeper documentation
+- Backend development guide: `../backend/README.md`

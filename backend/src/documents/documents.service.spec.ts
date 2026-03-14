@@ -1,20 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentsService } from './documents.service';
 import { AiExtractionService } from '../ai-extraction/ai-extraction.service';
+import { PrismaService } from '../database/prisma.service';
+import { createPrismaMock, PrismaMock } from '../test-utils/prisma-mock.factory';
+import { mockBuilding, mockProperty, mockUnit } from '../test-utils/fixtures';
+import { NotFoundException } from '@nestjs/common';
 
 describe('DocumentsService', () => {
   let service: DocumentsService;
   let aiService: jest.Mocked<AiExtractionService>;
+  let prisma: PrismaMock;
 
   beforeEach(async () => {
     const mockAiService = {
       extractFromPdf: jest.fn(),
     };
+    prisma = createPrismaMock();
+    prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentsService,
         { provide: AiExtractionService, useValue: mockAiService },
+        { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
 
@@ -62,31 +70,52 @@ describe('DocumentsService', () => {
   });
 
   describe('extract', () => {
-    it('should delegate to AI extraction service', async () => {
+    it('should persist extraction results for a property', async () => {
       const mockResult = {
         confidence: 95,
         buildings: [{ label: 'Haus A', street: 'Musterstr.', houseNumber: '1' }],
         units: [{ number: '1', type: 'APARTMENT', buildingLabel: 'Haus A' }],
       };
       aiService.extractFromPdf.mockResolvedValue(mockResult);
+      prisma.property.findFirst.mockResolvedValue(mockProperty());
+      prisma.sourceDocument.create.mockResolvedValue({ id: 'doc-1' } as any);
+      prisma.aiExtractionJob.create.mockResolvedValue({ id: 'job-1' } as any);
+      prisma.building.findMany.mockResolvedValue([]);
+      prisma.building.create.mockResolvedValue(mockBuilding());
+      prisma.unit.findFirst.mockResolvedValue(null);
+      prisma.unit.create.mockResolvedValue(mockUnit({ isAiGenerated: true }));
+      prisma.property.update.mockResolvedValue(mockProperty({ source: 'AI_ASSISTED' }));
 
       const file = { buffer: Buffer.from('pdf content') } as Express.Multer.File;
-      const result = await service.extract(file);
+      const result = await service.extract(file, { propertyId: 'prop-1' });
 
       expect(aiService.extractFromPdf).toHaveBeenCalledWith(file.buffer);
-      expect(result).toEqual(mockResult);
+      expect(prisma.sourceDocument.create).toHaveBeenCalled();
+      expect(prisma.unit.create).toHaveBeenCalled();
+      expect(result.documentId).toBe('doc-1');
+    });
+
+    it('should throw when property is missing', async () => {
+      prisma.property.findFirst.mockResolvedValue(null);
+
+      const file = { buffer: Buffer.from('pdf content') } as Express.Multer.File;
+
+      await expect(
+        service.extract(file, { propertyId: 'missing' }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should propagate errors from AI service', async () => {
+      prisma.property.findFirst.mockResolvedValue(mockProperty());
       aiService.extractFromPdf.mockRejectedValue(
         new Error('AI extraction failed'),
       );
 
       const file = { buffer: Buffer.from('bad pdf') } as Express.Multer.File;
 
-      await expect(service.extract(file)).rejects.toThrow(
-        'AI extraction failed',
-      );
+      await expect(
+        service.extract(file, { propertyId: 'prop-1' }),
+      ).rejects.toThrow('AI extraction failed');
     });
   });
 });

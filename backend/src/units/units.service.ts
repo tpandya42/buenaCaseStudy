@@ -142,7 +142,18 @@ export class UnitsService {
   /*  UPDATE single unit                                                 */
   /* ------------------------------------------------------------------ */
   async update(id: string, dto: UpdateUnitDto) {
-    await this.findOne(id); // throws 404 if missing
+    const unit = await this.findOne(id); // throws 404 if missing
+    if (dto.buildingId) {
+      const building = await this.prisma.building.findFirst({
+        where: { id: dto.buildingId, propertyId: unit.propertyId },
+        select: { id: true },
+      });
+      if (!building) {
+        throw new BadRequestException(
+          `Building ${dto.buildingId} does not belong to property ${unit.propertyId}`,
+        );
+      }
+    }
     return this.prisma.unit.update({
       where: { id },
       data: dto,

@@ -21,3 +21,4 @@ Backend: `http://localhost:3000`
 ## Documentation
 - Docker: `docs/docker/README.md`
 - Tech docs: `docs/tech-docs/README.md`
+- Backend dev guide: `docs/backend/README.md`

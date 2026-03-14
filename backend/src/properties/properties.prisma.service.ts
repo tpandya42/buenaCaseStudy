@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreatePropertyDto } from './dto/create-property.dto/create-property.dto';
+import { UpdatePropertyDto } from './dto/update-property.dto/update-property.dto';
 import { ListPropertiesDto } from './dto/list-properties.dto/list-properties.dto';
 import { CreateBuildingDto } from '../buildings/dto/create-building.dto/create-building.dto';
 import { CreateUnitDto } from '../units/dto/create-unit.dto/create-unit.dto';
@@ -60,7 +61,7 @@ export class PropertiesPrismaService {
   }
 
 
-  async update(id: string, data: Partial<CreatePropertyDto>) {
+  async update(id: string, data: UpdatePropertyDto) {
     await this.findOne(id); // throws 404 if missing
     return this.prisma.property.update({
       where: { id },

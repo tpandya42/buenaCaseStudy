@@ -108,14 +108,26 @@ describe('PropertiesService', () => {
 
   describe('update', () => {
     it('should delegate to prisma service with partial data', async () => {
+      prismaSvc.findOne.mockResolvedValue(mockProperty());
       const data = { name: 'Updated' };
       const expected = mockProperty({ name: 'Updated' });
       prismaSvc.update.mockResolvedValue(expected as any);
 
       const result = await service.update('prop-1', data);
 
+      expect(prismaSvc.findOne).toHaveBeenCalledWith('prop-1');
       expect(prismaSvc.update).toHaveBeenCalledWith('prop-1', data);
       expect(result).toEqual(expected);
+    });
+
+    it('should reject WEG updates without a manager', async () => {
+      prismaSvc.findOne.mockResolvedValue(
+        mockProperty({ managementType: ManagementType.MV, managerId: null }),
+      );
+
+      await expect(
+        service.update('prop-1', { managementType: ManagementType.WEG }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

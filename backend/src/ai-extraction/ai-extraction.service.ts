@@ -25,6 +25,7 @@ export class AiExtractionService {
         'AI extraction is unavailable — GEMINI_API_KEY is not configured',
       );
     }
+    const modelName = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
 
     const pdfData = await (pdfParse as any)(buffer);
     let text: string = pdfData.text;
@@ -60,7 +61,7 @@ Rules:
 - Extract ALL buildings and units found in the document`;
 
     const model = this.genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: modelName,
       generationConfig: {
         temperature: 0,
         responseMimeType: 'application/json',

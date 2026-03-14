@@ -1,11 +1,14 @@
 import { Controller, Post, Get, Patch, Body, Query, Param } from '@nestjs/common';
+import { SkipAuth } from '../auth/skip-auth.decorator';
 import { CreatePropertyDto } from './dto/create-property.dto/create-property.dto';
 import { ListPropertiesDto } from './dto/list-properties.dto/list-properties.dto';
 import { BulkCreateBuildingsDto } from './dto/bulk-create-buildings.dto';
 import { BulkCreateUnitsDto } from './dto/bulk-create-units.dto';
+import { UpdatePropertyDto } from './dto/update-property.dto/update-property.dto';
 import { PropertiesService } from './properties.service';
 import { PropertiesPrismaService } from './properties.prisma.service';
 
+@SkipAuth()
 @Controller('properties')
 export class PropertiesController {
     constructor(
@@ -29,7 +32,7 @@ export class PropertiesController {
     }
 
     @Patch(':id')
-    async update(@Param('id') id: string, @Body() dto: Partial<CreatePropertyDto>) {
+    async update(@Param('id') id: string, @Body() dto: UpdatePropertyDto) {
         return this.propertiesService.update(id, dto);
     }
 

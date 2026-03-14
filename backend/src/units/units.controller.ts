@@ -11,7 +11,9 @@ import { UnitsService } from './units.service';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { BulkCreateUnitsDto } from './dto/bulk-create-units.dto';
 import { BulkUpdateUnitsDto } from './dto/bulk-update-units.dto';
+import { SkipAuth } from '../auth/skip-auth.decorator';
 
+@SkipAuth()
 @Controller('units')
 export class UnitsController {
   constructor(private readonly unitsService: UnitsService) {}

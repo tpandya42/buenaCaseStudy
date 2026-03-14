@@ -19,3 +19,11 @@ export class ExtractResultDto {
   units: ExtractedUnitDto[];
   warning?: string;
 }
+
+export class ExtractPersistResultDto extends ExtractResultDto {
+  propertyId: string;
+  documentId: string;
+  buildingsCreated: number;
+  unitsCreated: number;
+  unitsUpdated: number;
+}

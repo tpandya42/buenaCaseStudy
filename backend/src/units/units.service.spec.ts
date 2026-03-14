@@ -118,6 +118,16 @@ describe('UnitsService', () => {
 
       expect(result.floor).toBe('2.OG');
     });
+
+    it('should reject building updates to another property', async () => {
+      const unit = mockUnit({ propertyId: 'prop-1' });
+      prisma.unit.findFirst.mockResolvedValue(unit);
+      prisma.building.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update('unit-1', { buildingId: 'other-building' }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('bulkCreate', () => {
