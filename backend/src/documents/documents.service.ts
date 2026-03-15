@@ -1,5 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { AiExtractionService } from '../ai-extraction/ai-extraction.service';
+import {
+  ExtractedBuilding,
+  ExtractedProperty,
+  ExtractedUnit,
+} from '../ai-extraction/ai-extraction.types';
 import { ExtractPersistResultDto } from './dto/extract-result.dto';
 import { ExtractDocumentDto } from './dto/extract-document.dto';
 import { PrismaService } from '../database/prisma.service';
@@ -34,6 +39,17 @@ export class DocumentsService {
     const extraction = await this.aiExtractionService.extractFromPdf(file.buffer);
     const modelName = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
     const warnings: string[] = [...(extraction.warnings ?? [])];
+
+    if (
+      !this.hasMeaningfulPropertyData(extraction.property) &&
+      !this.hasMeaningfulBuildings(extraction.buildings) &&
+      !this.hasMeaningfulUnits(extraction.units)
+    ) {
+      throw new BadRequestException(
+        'No extractable property deal information found in the submitted PDF',
+      );
+    }
+
     const storagePath = `storage/${Date.now()}/${file.originalname}`;
 
     const unitTypes = new Set(Object.values(UnitType));
@@ -364,5 +380,68 @@ export class DocumentsService {
       unitsCreated: result.unitsCreated,
       unitsUpdated: result.unitsUpdated,
     };
+  }
+
+  private hasMeaningfulPropertyData(property?: ExtractedProperty): boolean {
+    if (!property) {
+      return false;
+    }
+
+    return [
+      property.name,
+      property.propertyNumber,
+      property.street,
+      property.houseNumber,
+      property.zipCode,
+      property.city,
+      property.country,
+    ].some((value) => this.hasMeaningfulString(value));
+  }
+
+  private hasMeaningfulBuildings(buildings?: ExtractedBuilding[]): boolean {
+    return (buildings ?? []).some((building) =>
+      [
+        building.label,
+        building.street,
+        building.houseNumber,
+        building.zipCode,
+        building.city,
+        building.additionalInfo,
+        building.docReference,
+        building.externalId,
+      ].some((value) => this.hasMeaningfulString(value)),
+    );
+  }
+
+  private hasMeaningfulUnits(units?: ExtractedUnit[]): boolean {
+    return (units ?? []).some((unit) => {
+      const hasTextData = [
+        unit.number,
+        unit.type,
+        unit.buildingLabel,
+        unit.floor,
+        unit.entrance,
+        unit.stairwell,
+        unit.sideOfBuilding,
+        unit.usageNotes,
+        unit.docReference,
+        unit.externalId,
+      ].some((value) => this.hasMeaningfulString(value));
+
+      const hasNumericData = [
+        unit.sizeSqm,
+        unit.coOwnershipShare,
+        unit.constructionYear,
+        unit.rooms,
+      ].some((value) => typeof value === 'number' && Number.isFinite(value));
+
+      const hasBooleanData = typeof unit.isCommonProperty === 'boolean';
+
+      return hasTextData || hasNumericData || hasBooleanData;
+    });
+  }
+
+  private hasMeaningfulString(value?: string | null): boolean {
+    return typeof value === 'string' && value.trim().length > 0;
   }
 }

@@ -104,6 +104,35 @@ describe('DocumentsService', () => {
       expect(result.propertyId).toBe('prop-1');
     });
 
+    it('should reject extraction when no meaningful deal information is found', async () => {
+      aiService.extractFromPdf.mockResolvedValue({
+        property: {
+          name: '   ',
+          propertyNumber: '',
+          street: '',
+          houseNumber: '',
+          zipCode: '',
+          city: '',
+          country: '',
+        },
+        buildings: [{}],
+        units: [{}],
+      });
+
+      const file = { buffer: Buffer.from('random pdf') } as Express.Multer.File;
+
+      await expect(
+        service.extract(file, { organizationId: 'org-1' }),
+      ).rejects.toThrow(
+        'No extractable property deal information found in the submitted PDF',
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.organization.upsert).not.toHaveBeenCalled();
+      expect(prisma.property.create).not.toHaveBeenCalled();
+      expect(prisma.sourceDocument.create).not.toHaveBeenCalled();
+    });
+
     it('should propagate errors from AI service', async () => {
       aiService.extractFromPdf.mockRejectedValue(
         new Error('AI extraction failed'),

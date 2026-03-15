@@ -6,20 +6,23 @@ import type {
   UpdatePropertyPayload,
   CreateBuildingPayload,
   CreateUnitPayload,
+  ListPropertiesQuery,
 } from "@/lib/types";
 
-export function useProperties() {
+export function useProperties(params?: ListPropertiesQuery) {
+  const queryParams = params ?? {};
+
   return useQuery<Property[]>({
-    queryKey: ["properties"],
-    queryFn: () => api.get("/properties").then((r) => r.data),
+    queryKey: ["properties", queryParams],
+    queryFn: () => api.get("/properties", { params: queryParams }).then((r) => r.data),
   });
 }
 
-export function useProperty(id: string) {
+export function useProperty(id: string, options?: { enabled?: boolean }) {
   return useQuery<Property>({
     queryKey: ["properties", id],
     queryFn: () => api.get(`/properties/${id}`).then((r) => r.data),
-    enabled: !!id,
+    enabled: options?.enabled ?? !!id,
   });
 }
 
@@ -61,10 +64,12 @@ export function useBulkCreateBuildings(propertyId: string) {
   return useMutation({
     mutationFn: (buildings: CreateBuildingPayload[]) =>
       api
-        .post(`/properties/${propertyId}/buildings/bulk`, { buildings })
+        .post(`/properties/${propertyId}/buildings/bulk`, { items: buildings })
         .then((r) => r.data),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["properties", propertyId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["properties"] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
   });
 }
 
@@ -73,9 +78,11 @@ export function useBulkCreatePropertyUnits(propertyId: string) {
   return useMutation({
     mutationFn: (units: CreateUnitPayload[]) =>
       api
-        .post(`/properties/${propertyId}/units/bulk`, { units })
+        .post(`/properties/${propertyId}/units/bulk`, { items: units })
         .then((r) => r.data),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["properties", propertyId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["properties"] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
   });
 }

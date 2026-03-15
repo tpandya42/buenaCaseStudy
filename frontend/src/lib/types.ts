@@ -3,6 +3,8 @@
 export type ManagementType = "WEG" | "MV";
 export type PropertyStatus = "DRAFT" | "IN_REVIEW" | "ACTIVE" | "ARCHIVED";
 export type PropertySource = "MANUAL" | "AI_ASSISTED" | "IMPORTED";
+export type PropertySortBy = "createdAt" | "updatedAt" | "name";
+export type SortOrder = "asc" | "desc";
 export type OwnershipType = "FREEHOLD" | "LEASEHOLD";
 export type UnitType = "APARTMENT" | "OFFICE" | "GARDEN" | "PARKING";
 export type DocumentType = "DECLARATION_OF_DIVISION" | "OTHER";
@@ -27,6 +29,23 @@ export interface User {
   updatedAt: string;
 }
 
+export interface WarningPayload {
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface AiExtractionJobSummary {
+  id: string;
+  status: AiJobStatus;
+  model: string;
+  createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  confidenceScore?: number | null;
+  validationIssues?: WarningPayload | null;
+  documentId: string;
+}
+
 export interface Property {
   id: string;
   organizationId: string;
@@ -45,7 +64,7 @@ export interface Property {
   accountantId?: string;
   sourceDocumentId?: string;
   aiConfidenceScore?: number;
-  aiMeta?: Record<string, unknown>;
+  aiMeta?: WarningPayload | null;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;
@@ -55,6 +74,8 @@ export interface Property {
   buildings?: Building[];
   units?: Unit[];
   sourceDocument?: SourceDocument;
+  documents?: SourceDocument[];
+  aiExtractionJobs?: AiExtractionJobSummary[];
   _count?: { units: number; buildings: number };
 }
 
@@ -129,7 +150,7 @@ export interface CreatePropertyPayload {
   city?: string;
 }
 
-export interface UpdatePropertyPayload extends Partial<CreatePropertyPayload> {}
+export type UpdatePropertyPayload = Partial<CreatePropertyPayload>;
 
 export interface CreateBuildingPayload {
   label: string;
@@ -152,10 +173,19 @@ export interface CreateUnitPayload {
   usageNotes?: string;
 }
 
-export interface UpdateUnitPayload extends Partial<CreateUnitPayload> {}
+export type UpdateUnitPayload = Partial<CreateUnitPayload>;
 
 export interface BulkUpdateUnitItem extends UpdateUnitPayload {
   id: string;
+}
+
+export interface ListPropertiesQuery {
+  search?: string;
+  status?: PropertyStatus;
+  source?: PropertySource;
+  onlyWithUnits?: boolean;
+  sortBy?: PropertySortBy;
+  sortOrder?: SortOrder;
 }
 
 /* ── AI Extraction ──────────────────────────────────────────────── */

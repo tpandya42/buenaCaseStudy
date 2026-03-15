@@ -4,7 +4,14 @@ import { PrismaService } from '../database/prisma.service';
 import { createPrismaMock, PrismaMock } from '../test-utils/prisma-mock.factory';
 import { mockProperty, mockUnit } from '../test-utils/fixtures';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { PropertyStatus } from '@prisma/client';
+import { PropertySource, PropertyStatus } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import {
+  ListPropertiesDto,
+  PropertySortBy,
+  SortOrder,
+} from './dto/list-properties.dto/list-properties.dto';
 
 describe('PropertiesPrismaService', () => {
   let service: PropertiesPrismaService;
@@ -76,23 +83,76 @@ describe('PropertiesPrismaService', () => {
       );
     });
 
-    it('should apply search filter when provided', async () => {
+    it('should apply case-insensitive search filter when provided', async () => {
       prisma.property.findMany.mockResolvedValue([]);
 
-      await service.findAll({ search: 'berlin' });
+      await service.findAll({ search: '  berlin  ' });
 
       const where = prisma.property.findMany.mock.calls[0][0].where;
-      expect(where.OR).toBeDefined();
-      expect(where.OR).toHaveLength(2);
+      expect(where.OR).toEqual([
+        { name: { contains: 'berlin', mode: 'insensitive' } },
+        { propertyNumber: { contains: 'berlin', mode: 'insensitive' } },
+      ]);
+    });
+
+    it('should ignore blank search values', async () => {
+      prisma.property.findMany.mockResolvedValue([]);
+
+      await service.findAll({ search: '   ' });
+
+      const where = prisma.property.findMany.mock.calls[0][0].where;
+      expect(where.OR).toBeUndefined();
     });
 
     it('should filter by status when provided', async () => {
       prisma.property.findMany.mockResolvedValue([]);
 
-      await service.findAll({ status: 'ACTIVE' });
+      await service.findAll({ status: PropertyStatus.ACTIVE });
 
       const where = prisma.property.findMany.mock.calls[0][0].where;
       expect(where.status).toBe(PropertyStatus.ACTIVE);
+    });
+
+    it('should filter by source when provided', async () => {
+      prisma.property.findMany.mockResolvedValue([]);
+
+      await service.findAll({ source: PropertySource.AI_ASSISTED });
+
+      const where = prisma.property.findMany.mock.calls[0][0].where;
+      expect(where.source).toBe(PropertySource.AI_ASSISTED);
+    });
+
+    it('should filter to properties with units when onlyWithUnits is true', async () => {
+      prisma.property.findMany.mockResolvedValue([]);
+
+      await service.findAll({ onlyWithUnits: true });
+
+      const where = prisma.property.findMany.mock.calls[0][0].where;
+      expect(where.units).toEqual({ some: { deletedAt: null } });
+    });
+
+    it('should apply custom sort settings when provided', async () => {
+      prisma.property.findMany.mockResolvedValue([]);
+
+      await service.findAll({
+        sortBy: PropertySortBy.NAME,
+        sortOrder: SortOrder.ASC,
+      });
+
+      expect(prisma.property.findMany.mock.calls[0][0].orderBy).toEqual({
+        name: SortOrder.ASC,
+      });
+    });
+
+    it('should count only non-deleted units', async () => {
+      prisma.property.findMany.mockResolvedValue([]);
+
+      await service.findAll({});
+
+      const include = prisma.property.findMany.mock.calls[0][0].include;
+      expect(include._count.select.units).toEqual({
+        where: { deletedAt: null },
+      });
     });
   });
 
@@ -109,6 +169,24 @@ describe('PropertiesPrismaService', () => {
           where: { id: 'prop-1', deletedAt: null },
         }),
       );
+    });
+
+    it('should request enriched extraction relations for deep visualization', async () => {
+      prisma.property.findUnique.mockResolvedValue(mockProperty());
+
+      await service.findOne('prop-1');
+
+      const include = prisma.property.findUnique.mock.calls[0][0].include;
+      expect(include.documents).toEqual({ orderBy: { uploadedAt: 'desc' } });
+      expect(include.aiExtractionJobs).toEqual(
+        expect.objectContaining({
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+      expect(include.buildings.include._count.select.units).toEqual({
+        where: { deletedAt: null },
+      });
     });
 
     it('should throw NotFoundException when property not found', async () => {
@@ -247,6 +325,26 @@ describe('PropertiesPrismaService', () => {
 
       expect(prisma.unit.createMany).toHaveBeenCalled();
       expect(result).toEqual({ count: 3 });
+    });
+  });
+
+  describe('ListPropertiesDto validation', () => {
+    it('should parse explicit boolean query values for onlyWithUnits', () => {
+      const dtoTrue = plainToInstance(ListPropertiesDto, { onlyWithUnits: 'true' });
+      const dtoFalse = plainToInstance(ListPropertiesDto, { onlyWithUnits: 'false' });
+
+      expect(validateSync(dtoTrue)).toHaveLength(0);
+      expect(validateSync(dtoFalse)).toHaveLength(0);
+      expect(dtoTrue.onlyWithUnits).toBe(true);
+      expect(dtoFalse.onlyWithUnits).toBe(false);
+    });
+
+    it('should reject invalid boolean query values for onlyWithUnits', () => {
+      const dto = plainToInstance(ListPropertiesDto, { onlyWithUnits: 'yes' });
+
+      const errors = validateSync(dto);
+      expect(errors).toHaveLength(1);
+      expect(errors[0].property).toBe('onlyWithUnits');
     });
   });
 });
