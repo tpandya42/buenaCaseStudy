@@ -28,8 +28,7 @@ It combines manual workflows with AI-assisted extraction so teams can upload Ger
 ├── docs/
 │   ├── tech-docs/           # Architecture and cross-cutting design
 │   ├── backend/             # Backend implementation and API behavior
-│   ├── docker/              # Docker workflows and local ops runbook
-│   └── deployment/          # Production deployment runbook (Fly + Vercel)
+│   └── docker/              # Docker workflows and local ops runbook
 └── docker-compose.yml       # Full-stack local orchestration
 ```
 
@@ -134,5 +133,4 @@ This prevents creating empty fallback properties.
 - Architecture guide: [`docs/tech-docs/README.md`](docs/tech-docs/README.md)
 - Backend guide: [`docs/backend/README.md`](docs/backend/README.md)
 - Docker runbook: [`docs/docker/README.md`](docs/docker/README.md)
-- Deployment runbook: [`docs/deployment/README.md`](docs/deployment/README.md)
 - Backend folder quick guide: [`backend/README.md`](backend/README.md)

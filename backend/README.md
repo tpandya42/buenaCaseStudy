@@ -26,6 +26,5 @@ npm run test:e2e
 
 - Full backend guide: [`../docs/backend/README.md`](../docs/backend/README.md)
 - Docker operations: [`../docs/docker/README.md`](../docs/docker/README.md)
-- Deployment runbook: [`../docs/deployment/README.md`](../docs/deployment/README.md)
 - Architecture overview: [`../docs/tech-docs/README.md`](../docs/tech-docs/README.md)
 - Repository entrypoint: [`../README.md`](../README.md)
