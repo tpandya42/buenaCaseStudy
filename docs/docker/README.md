@@ -1,80 +1,144 @@
-# Docker Guide
+# Docker Operations Guide
 
-This guide runs the full stack (frontend + backend + Postgres) with Docker Compose.
+This guide covers how to run and operate the full stack locally using Docker Compose.
+
+## Services and ports
+
+`docker-compose.yml` starts three services:
+
+- `db` (PostgreSQL 16): `localhost:5432`
+- `backend` (NestJS API): `localhost:3000`
+- `frontend` (Next.js app): `localhost:3001`
 
 ## Prerequisites
+
 - Docker Desktop installed and running
+- Compose v2 (`docker compose ...`)
 
-## Setup
-Create a `.env` file in the repo root:
+## Environment setup
 
-```
+Create a root `.env` file:
+
+```bash
 SUPABASE_JWT_SECRET=change-me
 GEMINI_API_KEY=
 DATABASE_URL=
 ```
 
-If `DATABASE_URL` is empty, Compose uses the built-in Postgres container.
-If you already have `backend/.env`, copy the values into the root `.env`.
+Behavior notes:
+
+- If `DATABASE_URL` is empty, backend defaults to `postgresql://postgres:postgres@db:5432/postgres`.
+- Set `GEMINI_API_KEY` to enable extraction.
 
 ## Start the stack
-```
+
+Foreground mode:
+
+```bash
 docker compose up --build
 ```
 
-Open:
-- Frontend: `http://localhost:3001`
-- Backend: `http://localhost:3000`
+Detached mode:
 
-## Common commands
-Start in background:
-```
-docker compose up -d
+```bash
+docker compose up -d --build
 ```
 
-Stop services:
-```
+## Stop and cleanup
+
+Stop services (retain DB volume):
+
+```bash
 docker compose down
 ```
 
-Stop and wipe the database volume:
-```
+Stop services and wipe database data:
+
+```bash
 docker compose down -v
 ```
 
-Rebuild after code changes:
+## Day-to-day operations
+
+Tail all logs:
+
+```bash
+docker compose logs -f
 ```
+
+Tail a single service:
+
+```bash
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs -f db
+```
+
+Check status:
+
+```bash
+docker compose ps
+```
+
+Restart one service:
+
+```bash
+docker compose restart backend
+```
+
+Rebuild a single service image:
+
+```bash
 docker compose build backend
 docker compose build frontend
 ```
 
-Tail logs:
-```
-docker compose logs -f backend
-docker compose logs -f frontend
-```
-
 ## Database access
-Connect to Postgres:
-```
-docker compose exec db psql -U postgres
+
+Open a psql shell:
+
+```bash
+docker compose exec db psql -U postgres -d postgres
 ```
 
-Data is stored in the `db-data` volume and survives restarts unless you run `docker compose down -v`.
+The `db-data` volume persists data across restarts unless removed with `down -v`.
 
-## Migrations
-The backend container runs `prisma migrate deploy` on startup.
+## Migration behavior
 
-To create new migrations locally:
+On container startup, backend runs:
+
+```bash
+prisma migrate deploy
 ```
+
+This is executed by `backend/docker-entrypoint.sh` before starting the Node process.
+
+### Creating new migrations during development
+
+Create migrations from the local backend workspace (recommended):
+
+```bash
 cd backend
-npx prisma migrate dev --name <name>
-docker compose build backend
+npx prisma migrate dev --name <migration_name>
 ```
 
-## Custom backend URL for frontend
-The frontend build uses `API_BASE_URL` (build arg) to route `/api/*` to the backend.
-In `docker-compose.yml` this is set to `http://backend:3000`.
+After creating a migration, rebuild/restart backend container so the new migration file is included in the image.
 
-If you see proxy errors, the client can call the backend directly by setting
-`NEXT_PUBLIC_API_BASE_URL=http://localhost:3000` during the frontend build.
+## Frontend-to-backend API routing in Docker
+
+Frontend is built with:
+
+- `API_BASE_URL=http://backend:3000`
+- `NEXT_PUBLIC_API_BASE_URL=http://localhost:3000`
+
+Meaning:
+
+- Server-side and rewritten `/api/*` calls resolve via Docker network host `backend`.
+- Browser-side direct calls use `localhost:3000`.
+
+## Troubleshooting
+
+- Backend exits with `DATABASE_URL is required`: confirm env value is present or left empty to use default fallback.
+- Frontend cannot reach API: verify backend is healthy and check `docker compose logs -f backend`.
+- Extraction fails immediately: ensure `GEMINI_API_KEY` is configured.
+- Port conflicts: stop local processes occupying `3000`, `3001`, or `5432`.

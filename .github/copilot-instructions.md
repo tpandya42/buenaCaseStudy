@@ -1,54 +1,80 @@
 # Copilot Instructions
 
+These instructions capture repository-specific behavior so AI-assisted edits stay accurate, safe, and consistent.
+
 ## Build, test, and lint commands
 
 ### Frontend (`frontend/`)
-- Install deps: `cd frontend && npm install`
-- Dev server (port `3001`): `cd frontend && npm run dev`
-- Build: `cd frontend && npm run build`
+
+- Install dependencies: `cd frontend && npm install`
+- Start dev server (port `3001`): `cd frontend && npm run dev`
+- Build production app: `cd frontend && npm run build`
 - Lint: `cd frontend && npm run lint`
-- Production start: `cd frontend && npm run start`
-- Frontend tests: no test script is currently defined in `frontend/package.json`
+- Start production build: `cd frontend && npm run start`
+- Tests: no frontend test script is currently defined
 
 ### Backend (`backend/`)
-- Install deps: `cd backend && npm install`
-- Dev server (watch mode, port `3000` by default): `cd backend && npm run start:dev`
+
+- Install dependencies: `cd backend && npm install`
+- Start dev server (watch mode): `cd backend && npm run start:dev`
 - Build: `cd backend && npm run build`
 - Lint: `cd backend && npm run lint`
-- Unit/integration tests (all): `cd backend && npm test`
-- Run a single unit test file: `cd backend && npm test -- --runTestsByPath src/auth/supabase-auth.guard.spec.ts`
-- E2E tests (all): `cd backend && npm run test:e2e`
-- Run a single E2E file: `cd backend && npm run test:e2e -- --runTestsByPath test/app.e2e-spec.ts`
+- Unit/integration tests: `cd backend && npm test`
+- E2E tests: `cd backend && npm run test:e2e`
+- Run a single backend test file:
+  - `cd backend && npm test -- --runTestsByPath src/properties/properties.prisma.service.spec.ts`
+  - `cd backend && npm test -- --runTestsByPath src/documents/documents.service.spec.ts`
 
-### Full stack (Docker, repo root)
-- Start all services: `docker compose up --build`
+### Full stack (`docker-compose.yml` at repo root)
+
+- Build and start all services: `docker compose up --build`
 - Stop services: `docker compose down`
-- Stop + wipe DB volume: `docker compose down -v`
+- Stop and wipe DB volume: `docker compose down -v`
 
-## High-level architecture
+## Architecture summary
 
-- This is a two-app monorepo: Next.js frontend (`frontend/`) + NestJS backend (`backend/`) with PostgreSQL via Prisma.
-- `docker-compose.yml` orchestrates `frontend` (3001), `backend` (3000), and `db` (Postgres 16).
-- Frontend API routing is dual-mode:
-  - `next.config.ts` rewrites `/api/:path*` to `API_BASE_URL` (defaults to `http://localhost:3000`)
-  - Axios client in `src/lib/api.ts` uses `NEXT_PUBLIC_API_BASE_URL` and falls back to `/api`
-- Backend bootstrap (`src/main.ts`) applies global `ValidationPipe` (`whitelist: true`, `transform: true`) and global `PrismaExceptionFilter`.
-- Backend module composition (`src/app.module.ts`) centralizes domain modules (`properties`, `units`, `documents`, `ai-extraction`, etc.) and registers auth guard globally.
-- Data access is Prisma-backed (`prisma/schema.prisma`), with `PrismaService` using `@prisma/adapter-pg` + `pg` pool and exposed globally via `DatabaseModule`.
-- AI extraction flow:
-  - `POST /documents/extract` receives multipart `files`
-  - `AiExtractionService` parses PDF text and calls Gemini
-  - `DocumentsService` persists extracted property/buildings/units/document/job records in a single transaction
+- Monorepo with Next.js frontend + NestJS backend + PostgreSQL.
+- Frontend routing model:
+  - `next.config.ts` rewrites `/api/:path*` to `API_BASE_URL`.
+  - Axios client (`src/lib/api.ts`) uses `NEXT_PUBLIC_API_BASE_URL` fallback to `/api`.
+- Backend global behavior:
+  - Global `ValidationPipe` (`whitelist: true`, `transform: true`)
+  - Global `PrismaExceptionFilter`
+  - Global auth guard (`SupabaseAuthGuard`) with `@SkipAuth()` for public routes
+- Prisma schema is the enum/model source of truth (`backend/prisma/schema.prisma`).
 
-## Key conventions in this repository
+## Repository conventions
 
-- Auth is global by default (`APP_GUARD` with `SupabaseAuthGuard`). Public routes must be explicitly marked with `@SkipAuth()`.
-- DTO validation is strict and global. Unknown request keys are stripped by `ValidationPipe`, so payload shape must match DTO fields exactly.
-- Bulk endpoints use `items` arrays in DTOs (for example `BulkCreateBuildingsDto`, `BulkCreateUnitsDto`, `BulkUpdateUnitsDto`).
-- Domain enums are mirrored across layers:
-  - Backend source of truth: `backend/prisma/schema.prisma`
-  - Frontend mirrors: `frontend/src/lib/types.ts` and form schemas in `frontend/src/lib/validators.ts`
-- Frontend data fetching/mutations are centralized in hook files under `frontend/src/hooks/` using TanStack Query; mutations invalidate query keys instead of manually mutating UI state.
-- Soft deletion is used for key records (`deletedAt` on `Unit` and `Property`), and read paths typically filter to `deletedAt: null`.
-- Default organization bootstrap convention: frontend create/extract flows use `org_default`; backend extraction upserts the organization if it does not exist.
-- Prisma CLI requires `DATABASE_URL` at runtime (`backend/prisma.config.ts` throws when missing).
+### API and DTO patterns
+
+- Bulk endpoints expect `{ items: [...] }` payloads.
+- Query DTOs are strict. For `/properties`:
+  - `onlyWithUnits` only accepts boolean values (`true`/`false`)
+  - invalid enums/booleans should surface as validation errors
+- Keep frontend query types in sync with backend DTO enums (`source`, `sortBy`, `sortOrder`, etc.).
+
+### Properties and units behavior
+
+- Soft deletion is used (`deletedAt`), especially for `Unit` and `Property`.
+- Property list/count flows should exclude soft-deleted units where relevant.
+- Extracted deals are represented by `Property.source = AI_ASSISTED`.
+
+### Extraction behavior
+
+- `POST /documents/extract` must reject non-meaningful PDFs instead of creating empty fallback properties.
+- Meaningful extraction requires signal in at least one of: property, buildings, or units.
+- Duplicate unique values (commonly `propertyNumber`) map to `409 Conflict` via Prisma `P2002`.
+- Extraction warnings are persisted in job/property metadata and surfaced in frontend deal detail views.
+
+### Frontend data layer
+
+- Use TanStack Query hooks in `frontend/src/hooks/` for fetching/mutations.
+- Invalidate query keys after mutations rather than mutating cached lists ad hoc.
+- `/properties` is the extracted-deals-first visualization surface (sortable table + expandable details).
+
+## Implementation guidance for AI edits
+
+- Prefer surgical, behavior-safe changes over broad refactors.
+- Reuse existing DTOs, service patterns, and enum types before introducing new abstractions.
+- When changing extraction or property list behavior, update both backend contracts and frontend consumers.
+- Preserve explicit error semantics (`400` for invalid extraction input, `409` for uniqueness conflicts).
