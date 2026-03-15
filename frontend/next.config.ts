@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
-const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:3000";
+const configuredApiBaseUrl = process.env.API_BASE_URL?.trim();
+const apiBaseUrl =
+  configuredApiBaseUrl ||
+  (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3000");
+
+if (!apiBaseUrl) {
+  throw new Error(
+    "Missing API_BASE_URL for production build. Refusing to proxy /api to localhost in production."
+  );
+}
 
 const nextConfig: NextConfig = {
   /* config options here */

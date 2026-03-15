@@ -9,6 +9,7 @@ import { BuildingsModule } from './buildings/buildings.module';
 import { UnitsModule } from './units/units.module';
 import { AuthModule } from './auth/auth.module';
 import { SupabaseAuthGuard } from './auth/supabase-auth.guard';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SupabaseAuthGuard } from './auth/supabase-auth.guard';
     UnitsModule,
     AuthModule,
   ],
+  controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: SupabaseAuthGuard }],
 })
 export class AppModule {}

@@ -119,7 +119,7 @@ Detailed endpoint contracts and behaviors are documented in `docs/backend/README
 
 ### Frontend environment
 
-- `API_BASE_URL` (used by Next.js rewrite at build/runtime)
+- `API_BASE_URL` (required in production for Next.js rewrite; non-production falls back to `http://localhost:3000`)
 - `NEXT_PUBLIC_API_BASE_URL` (direct browser API base override)
 
 ## Error model and consistency rules
@@ -136,4 +136,5 @@ Detailed endpoint contracts and behaviors are documented in `docs/backend/README
 - Root guide: `README.md`
 - Backend implementation details: `docs/backend/README.md`
 - Docker operations: `docs/docker/README.md`
+- Deployment runbook (Fly.io + Vercel): `docs/deployment/README.md`
 - Backend folder quick guide: `backend/README.md`
